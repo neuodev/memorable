@@ -1,5 +1,5 @@
 use actix_web::{get, post, web, App, HttpResponse, HttpServer, Responder};
-
+use serde::Serialize;
 /**
  * 1) `/` should return data about the server
  * 2) GET /todos
@@ -8,14 +8,30 @@ use actix_web::{get, post, web, App, HttpResponse, HttpServer, Responder};
  * 5) POST /todos
  */
 
+#[derive(Serialize)]
+struct AppInfo<'a> {
+    app_name: &'a str,
+    description: &'a str,
+    author: &'a str,
+    email: &'a str,
+    github: &'a str,
+    repo: &'a str,
+}
+
 struct AppState {
     app_name: String,
 }
 
 #[get("/")]
-async fn index(data: web::Data<AppState>) -> String {
-    let app_name = &data.app_name;
-    format!("Hello, {app_name}")
+async fn index() -> impl Responder {
+    web::Json(AppInfo {
+        app_name: "Memorable",
+        description: "Rust based CRUD API for managing todos list. Intended as a testing API for people who just started working with JS fetch API",
+        author: "Ahmed Ibrahim",
+        email: "me@ahmedibrahim.dev",
+        github: "https://github.com/AhmedIbrahim336/",
+        repo: "https://github.com/AhmedIbrahim336/memorable"
+    })
 }
 
 #[post("/echo")]
