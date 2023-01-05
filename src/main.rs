@@ -7,7 +7,7 @@ use actix_web::{
 use serde::Serialize;
 use std::collections::HashMap;
 use std::sync::Mutex;
-use todos::{CreateTodo, Todo, UpdateTodo};
+use todos::{CreateTodo, SocketIPAddr, Todo, UpdateTodo};
 
 /**
  * 1) `/` should return data about the server ✅
@@ -16,7 +16,7 @@ use todos::{CreateTodo, Todo, UpdateTodo};
  * 4) DELETE /todos
  * 5) PUT /todos/{id}
  * 6) GET /todos/{id} ✅
- * Todo: Add middle ware to check for `ip` address
+ * Todo: Add middleware to check for `ip` address
  */
 
 #[derive(Serialize)]
@@ -30,7 +30,7 @@ struct AppInfo<'a> {
 }
 
 #[derive(Serialize)]
-struct ErrorRes {
+pub struct ErrorRes {
     message: String,
 }
 
@@ -60,7 +60,9 @@ async fn create_todo(
     req: HttpRequest,
     data: web::Data<AppState>,
     todo_json: web::Json<CreateTodo>,
+    ip_addr: SocketIPAddr,
 ) -> impl Responder {
+    println!("{:?}", ip_addr);
     let addr = match req.peer_addr() {
         Some(addr) => addr.ip().to_string(),
         None => {
