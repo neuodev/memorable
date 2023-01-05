@@ -168,6 +168,46 @@ async fn update_todo(
     HttpResponse::Ok().json(found_todo)
 }
 
+#[delete("/todos/{id}")]
+async fn delete_todo(
+    req: HttpRequest,
+    data: web::Data<AppState>,
+    path: web::Path<usize>,
+) -> impl Responder {
+    let addr = match req.peer_addr() {
+        Some(addr) => addr.ip().to_string(),
+        None => {
+            return HttpResponse::BadRequest().json(ErrorRes {
+                message: String::from("Missing request socket IP address"),
+            })
+        }
+    };
+
+    let todos_map = &mut *(data.todos.lock().unwrap());
+    let todos = todos_map.entry(addr.clone()).or_insert(Vec::new());
+    let todo_id = path.into_inner();
+    let todo = todos.iter().find(|todo| todo.id == todo_id);
+
+    match todo {
+        Some(_) => {
+            let filtered_todos = todos
+                .iter_mut()
+                .filter(|todo| todo.id != todo_id)
+                .map(|todo| todo.clone())
+                .collect::<_>();
+
+            todos_map.insert(addr, filtered_todos);
+        }
+        None => {
+            return HttpResponse::NotFound().json(MsgResponse {
+                message: String::from("Todo not found"),
+            })
+        }
+    };
+
+    HttpResponse::Ok().finish()
+}
+
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
     env_logger::init_from_env(env_logger::Env::new().default_filter_or("info"));
@@ -188,7 +228,8 @@ async fn main() -> std::io::Result<()> {
                     .service(create_todo)
                     .service(get_todos)
                     .service(get_todo_by_id)
-                    .service(update_todo),
+                    .service(update_todo)
+                    .service(delete_todo),
             )
     })
     .workers(6)
