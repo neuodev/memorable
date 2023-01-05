@@ -1,19 +1,22 @@
 mod todos;
 
 use actix_web::{
-    get, middleware::Logger, post, web, App, HttpRequest, HttpResponse, HttpServer, Responder,
+    delete, get, middleware::Logger, post, put, web, App, HttpRequest, HttpResponse, HttpServer,
+    Responder,
 };
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 use std::collections::HashMap;
 use std::sync::Mutex;
+use todos::{CreateTodo, Todo, UpdateTodo};
 
 /**
  * 1) `/` should return data about the server ✅
  * 2) GET /todos ✅
  * 3) POST /todos ✅
- * 4) DLETE /todos
- * 5) PUT /todos
- * 6) GET /todos/{id}
+ * 4) DELETE /todos
+ * 5) PUT /todos/{id}
+ * 6) GET /todos/{id} ✅
+ * Todo: Add middle ware to check for `ip` address
  */
 
 #[derive(Serialize)]
@@ -32,16 +35,8 @@ struct ErrorRes {
 }
 
 #[derive(Serialize)]
-struct OkResponse {
+struct MsgResponse {
     message: String,
-}
-
-#[derive(Serialize, Deserialize, Debug)]
-struct Todo {
-    id: usize,
-    title: String,
-    desc: String,
-    is_done: bool,
 }
 
 struct AppState {
@@ -64,7 +59,7 @@ async fn index() -> impl Responder {
 async fn create_todo(
     req: HttpRequest,
     data: web::Data<AppState>,
-    todo: web::Json<Todo>,
+    todo_json: web::Json<CreateTodo>,
 ) -> impl Responder {
     let addr = match req.peer_addr() {
         Some(addr) => addr.ip().to_string(),
@@ -77,9 +72,15 @@ async fn create_todo(
 
     let mut todos_map = data.todos.lock().unwrap();
     let todos = (*todos_map).entry(addr.clone()).or_insert(Vec::new());
-    todos.push(todo.into_inner());
+    let todo = todo_json.into_inner();
+    todos.push(Todo {
+        id: todos.len() + 1,
+        title: todo.title,
+        desc: todo.desc,
+        is_done: todo.is_done,
+    });
 
-    HttpResponse::Ok().json(OkResponse {
+    HttpResponse::Ok().json(MsgResponse {
         message: String::from("Todo created successfully"),
     })
 }
@@ -123,8 +124,48 @@ async fn get_todo_by_id(
 
     match todo {
         Some(todo) => HttpResponse::Ok().json(todo),
-        None => HttpResponse::NotFound().finish(),
+        None => HttpResponse::NotFound().json(MsgResponse {
+            message: String::from("Todo not found"),
+        }),
     }
+}
+
+#[put("/todos/{id}")]
+async fn update_todo(
+    req: HttpRequest,
+    data: web::Data<AppState>,
+    path: web::Path<usize>,
+    req_body: web::Json<UpdateTodo>,
+) -> impl Responder {
+    let addr = match req.peer_addr() {
+        Some(addr) => addr.ip().to_string(),
+        None => {
+            return HttpResponse::BadRequest().json(ErrorRes {
+                message: String::from("Missing request socket IP address"),
+            })
+        }
+    };
+
+    let mut todos_map = data.todos.lock().unwrap();
+    let todos = (*todos_map).entry(addr).or_insert(Vec::new());
+    let todo_id = path.into_inner();
+    let todo = todos.iter_mut().find(|todo| todo.id == todo_id);
+
+    let found_todo = match todo {
+        Some(todo) => todo,
+        None => {
+            return HttpResponse::NotFound().json(MsgResponse {
+                message: String::from("Todo not found"),
+            })
+        }
+    };
+
+    let body = req_body.into_inner();
+    found_todo.title = body.title.unwrap_or(found_todo.title.clone());
+    found_todo.desc = body.desc.unwrap_or(found_todo.desc.clone());
+    found_todo.is_done = body.is_done.unwrap_or(found_todo.is_done.clone());
+
+    HttpResponse::Ok().json(found_todo)
 }
 
 #[actix_web::main]
@@ -146,7 +187,8 @@ async fn main() -> std::io::Result<()> {
                     .service(index)
                     .service(create_todo)
                     .service(get_todos)
-                    .service(get_todo_by_id),
+                    .service(get_todo_by_id)
+                    .service(update_todo),
             )
     })
     .workers(6)
