@@ -29,6 +29,12 @@ pub struct UpdateTodo {
 #[derive(Debug)]
 pub struct SocketIPAddr(String);
 
+impl SocketIPAddr {
+    pub fn ip(self) -> String {
+        self.0
+    }
+}
+
 impl FromRequest for SocketIPAddr {
     type Error = Error;
     type Future = Ready<Result<Self, Self::Error>>;

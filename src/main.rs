@@ -9,16 +9,6 @@ use std::collections::HashMap;
 use std::sync::Mutex;
 use todos::{CreateTodo, SocketIPAddr, Todo, UpdateTodo};
 
-/**
- * 1) `/` should return data about the server ✅
- * 2) GET /todos ✅
- * 3) POST /todos ✅
- * 4) DELETE /todos
- * 5) PUT /todos/{id}
- * 6) GET /todos/{id} ✅
- * Todo: Add middleware to check for `ip` address
- */
-
 #[derive(Serialize)]
 struct AppInfo<'a> {
     app_name: &'a str,
@@ -57,21 +47,11 @@ async fn index() -> impl Responder {
 
 #[post("/todos")]
 async fn create_todo(
-    req: HttpRequest,
     data: web::Data<AppState>,
     todo_json: web::Json<CreateTodo>,
     ip_addr: SocketIPAddr,
 ) -> impl Responder {
-    println!("{:?}", ip_addr);
-    let addr = match req.peer_addr() {
-        Some(addr) => addr.ip().to_string(),
-        None => {
-            return HttpResponse::BadRequest().json(ErrorRes {
-                message: String::from("Missing request socket IP address"),
-            })
-        }
-    };
-
+    let addr = ip_addr.ip();
     let mut todos_map = data.todos.lock().unwrap();
     let todos = (*todos_map).entry(addr.clone()).or_insert(Vec::new());
     let todo = todo_json.into_inner();
@@ -88,37 +68,20 @@ async fn create_todo(
 }
 
 #[get("/todos")]
-async fn get_todos(req: HttpRequest, data: web::Data<AppState>) -> impl Responder {
-    let addr = match req.peer_addr() {
-        Some(addr) => addr.ip().to_string(),
-        None => {
-            return HttpResponse::BadRequest().json(ErrorRes {
-                message: String::from("Missing request socket IP address"),
-            })
-        }
-    };
-
+async fn get_todos(data: web::Data<AppState>, ip_addr: SocketIPAddr) -> impl Responder {
+    let addr = ip_addr.ip();
     let mut todos_map = data.todos.lock().unwrap();
     let todos = (*todos_map).entry(addr.clone()).or_insert(Vec::new());
-
     HttpResponse::Ok().json(todos)
 }
 
 #[get("/todos/{id}")]
 async fn get_todo_by_id(
-    req: HttpRequest,
     data: web::Data<AppState>,
     path: web::Path<usize>,
+    ip_addr: SocketIPAddr,
 ) -> impl Responder {
-    let addr = match req.peer_addr() {
-        Some(addr) => addr.ip().to_string(),
-        None => {
-            return HttpResponse::BadRequest().json(ErrorRes {
-                message: String::from("Missing request socket IP address"),
-            })
-        }
-    };
-
+    let addr = ip_addr.ip();
     let mut todos_map = data.todos.lock().unwrap();
     let todos = (*todos_map).entry(addr).or_insert(Vec::new());
     let todo_id = path.into_inner();
@@ -134,20 +97,12 @@ async fn get_todo_by_id(
 
 #[put("/todos/{id}")]
 async fn update_todo(
-    req: HttpRequest,
     data: web::Data<AppState>,
     path: web::Path<usize>,
     req_body: web::Json<UpdateTodo>,
+    ip_addr: SocketIPAddr,
 ) -> impl Responder {
-    let addr = match req.peer_addr() {
-        Some(addr) => addr.ip().to_string(),
-        None => {
-            return HttpResponse::BadRequest().json(ErrorRes {
-                message: String::from("Missing request socket IP address"),
-            })
-        }
-    };
-
+    let addr = ip_addr.ip();
     let mut todos_map = data.todos.lock().unwrap();
     let todos = (*todos_map).entry(addr).or_insert(Vec::new());
     let todo_id = path.into_inner();
@@ -172,19 +127,11 @@ async fn update_todo(
 
 #[delete("/todos/{id}")]
 async fn delete_todo(
-    req: HttpRequest,
     data: web::Data<AppState>,
     path: web::Path<usize>,
+    ip_addr: SocketIPAddr,
 ) -> impl Responder {
-    let addr = match req.peer_addr() {
-        Some(addr) => addr.ip().to_string(),
-        None => {
-            return HttpResponse::BadRequest().json(ErrorRes {
-                message: String::from("Missing request socket IP address"),
-            })
-        }
-    };
-
+    let addr = ip_addr.ip();
     let todos_map = &mut *(data.todos.lock().unwrap());
     let todos = todos_map.entry(addr.clone()).or_insert(Vec::new());
     let todo_id = path.into_inner();
