@@ -1,5 +1,6 @@
 mod todos;
 
+use actix_cors::Cors;
 use actix_web::{
     delete, get, middleware::Logger, post, put, web, App, HttpResponse, HttpServer, Responder,
 };
@@ -164,11 +165,17 @@ async fn main() -> std::io::Result<()> {
         todos: Mutex::new(HashMap::new()),
     });
 
-    HttpServer::new(move || {
+    let app = move || {
+        let cors = Cors::default()
+            .allow_any_origin()
+            .allow_any_header()
+            .allow_any_method();
+
         App::new()
             .wrap(Logger::new(
                 "%a \"%r\" %s %b \"%{Referer}i\" \"%{User-Agent}i\" %T",
             ))
+            .wrap(cors)
             .app_data(app_data.clone())
             .service(
                 web::scope("/api/v1")
@@ -179,8 +186,7 @@ async fn main() -> std::io::Result<()> {
                     .service(update_todo)
                     .service(delete_todo),
             )
-    })
-    .bind(("0.0.0.0", 8080))?
-    .run()
-    .await
+    };
+
+    HttpServer::new(app).bind(("0.0.0.0", 8080))?.run().await
 }
