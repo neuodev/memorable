@@ -1,8 +1,7 @@
 mod todos;
 
 use actix_web::{
-    delete, get, middleware::Logger, post, put, web, App, HttpRequest, HttpResponse, HttpServer,
-    Responder,
+    delete, get, middleware::Logger, post, put, web, App, HttpResponse, HttpServer, Responder,
 };
 use serde::Serialize;
 use std::collections::HashMap;
